@@ -1,0 +1,119 @@
+= Skaffold Quarkus Hello World
+:experimental:
+
+A demo to show how to use https://https://skaffold.dev/[Skaffold] to do rapid application development
+with https://quarkus.io[Quarkus].
+
+== Pre-requisites
+
+* https://kubernetes.io/docs/setup/learning-environment/minikube/[minikube]
+* http://openjdk.java.net/install/[Java 8]
+* https://maven.apache.org[Apache Maven]
+* https://https://skaffold.dev/[Skaffold]
+* https://www.docker.com/products/docker-desktop[Docker] (Optional)
+
+== Setup Kubernetes Cluster
+
+[source,bash]
+----
+minikube profile quarkus-demos
+minikube start -p quarkus-demos --memory=8192 --cpus=4 --disk-size=50g #<1>
+eval $(minikube docker-env) #<2>
+----
+
+<1> Please add the other needed options as per your operating system
+<2> Make the current docker context to be that of minikube
+
+== Setup Nexus(Optional)
+
+We will use nexus for caching maven artifacts so that builds are faster.
+
+[source,bash]
+----
+kubectl apply -f k8s/nexus.yaml
+----
+
+Wait for some time to have nexus initialize and run. You can watch the status via `kubectl get pods -w`, use kbd:[Ctrl+c] to terminate the watch
+
+== Run Skaffold
+
+[IMPORTANT]
+====
+In both development and production mode, the container image will not be pushed to remote 
+container registry.
+====
+
+=== Quarkus Development mode 
+
+[source,bash]
+----
+skaffold dev --file skaffold-dev.yaml --port-forward #<1>
+----
+<1> Run skaffold in `dev` mode. The **port-forward** option automatically forward the Kubernetes service port(default is 8080) to localhost port (default is 8080). By default it maps the application service port `8080` to host `8080`
+
+[NOTE]
+====
+* The first build will be bit slower as it needs to cache the maven artifacts in nexus maven repository
+* You can watch the status via `kubectl get pods -w `, use kbd:[Ctrl+c] to terminate the watch
+====
+
+Once you see your application running alongside nexus (if you had deployed earlier):
+
+[source,bash]
+----
+NAME                                           READY   STATUS    RESTARTS   AGE
+nexus-5585f7fcf6-jk6j7                         1/1     Running   0          5h3m
+skaffold-quarkus-helloworld-6f99cbb648-lsqwh   1/1     Running   0          5s
+----
+
+Try opening the url http://locahost:8080/hello, which should show a message like **Welcome to Quarkus!!** from the link:./src/main/java/com/redhat/developers/GreetingResource.java#L14[GreetingResource.java]
+
+Now make any changes to the sources in your editor and try refreshing the browser you will see Quarkus live reload happening as usual on the terminal where you had started `skaffold dev` without the `skaffold-quarkus-hello-world` redeployed.
+
+[TIP]
+====
+Though the demo application provides `build.cmd` for windows users I personally recommend https://docs.microsoft.com/en-us/windows/wsl/install-win10[WSL] and https://code.visualstudio.com/docs/remote/remote-overview[VS Code Remote Development]
+====
+
+=== Quarkus Production mode
+
+To run Quarkus application in production mode, we need to use the multi stage docker build; to build the quarkus application container image and use it in Kubernetes application deployment.
+
+The following commands starts a one time deployment of Quarkus application with the port-forward and it also tails the logs from the application once its up and running.
+
+[NOTE]
+====
+If you want to deploy Quarkus JVM image then run the following command before running skaffold:
+
+[source,bash]
+----
+cp src/main/docker/Dockerfile.jvm Dockerfile
+----
+
+If you want to deploy Quarkus Native image then run the following command before running skaffold:
+
+[source,bash]
+----
+cp src/main/docker/Dockerfile.native Dockerfile
+----
+====
+
+[WARNING]
+====
+You might face a build failure in pulling the image `quay.io/quarkus/centos-quarkus-maven:19.3.1-java8`, as Quarkus repo in https://quay.io is not v2_2 enabled. If you encounter the issue with pull then do a manual pull 
+`docker pull quay.io/quarkus/centos-quarkus-maven:19.3.1-java8`
+====
+
+[source,bash]
+----
+skaffold run --port-forward --tail
+----
+
+=== Cleanup 
+
+To delete the application:
+
+[source,bash]
+----
+skaffold delete
+----

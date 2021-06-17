@@ -1,0 +1,24 @@
+FROM quay.io/quarkus/centos-quarkus-maven:19.3.1-java8 as build
+
+# If you want to use nexus or any other maven repository manager then
+# uncomment this to point to the repo manager
+# ENV MAVEN_MIRROR_URL http://nexus:8081/nexus/repository/maven-public/
+
+USER root
+
+RUN mkdir -p /usr/src/app && \
+    chown -R quarkus /usr/src/app
+
+USER quarkus
+
+# Set the maven mirrors in the maven settings if available
+
+RUN /usr/local/bin/entrypoint-run.sh
+
+COPY src /usr/src/app/src
+
+COPY pom.xml /usr/src/app/
+
+WORKDIR /usr/src/app
+
+CMD [ "mvn","clean","compile", "quarkus:dev" ]
